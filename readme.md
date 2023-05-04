@@ -12,10 +12,6 @@
 - [ ] Blocklist tokens with redis  
 - [ ] Tests with pytest
 
-### Docker local hot reload
-```
-docker run -p 5000:5000 -w /app -v $(pwd):/app flask_api:latest
-```
 
 ### Migrations
 flask-migrate (alembic)
