@@ -1,4 +1,5 @@
 from flask.views import MethodView
+from flask import current_app
 from flask_smorest import Blueprint, abort
 from passlib.hash import pbkdf2_sha256
 from sqlalchemy.exc import IntegrityError
@@ -9,28 +10,41 @@ from flask_jwt_extended import (
     create_refresh_token,
     get_jwt_identity
 )
-
+from sqlalchemy import or_
 from db import db
 from models import UserModel
-from schemas import UserSchema
+from schemas import UserSchema, UserRegisterSchema
 from blocklist import BLOCKLIST
+from tasks import send_user_registration_email
 
-user_blueprint = Blueprint("Users", __name__, description="Operations on users")
+user_blueprint = Blueprint(
+    "Users", __name__, description="Operations on users")
+
 
 @user_blueprint.route("/register")
 class UserRegister(MethodView):
-    @user_blueprint.arguments(UserSchema)
+    @user_blueprint.arguments(UserRegisterSchema)
     def post(self, user_data):
-        # if UserModel.query.filter(UserModel.username == user_data["username"]).first():
-        #     abort(409, message="A user with that username already exists.")
+        if UserModel.query.filter(
+            or_(
+                UserModel.username == user_data["username"],
+                UserModel.email == user_data["username"]
+            )
+        ).first():
+            abort(409, message="A user with that username or email already exists.")
 
         user = UserModel(
             username=user_data["username"],
+            email=user_data["email"],
             password=pbkdf2_sha256.hash(user_data["password"]),
         )
+        
         try:
             db.session.add(user)
             db.session.commit()
+
+            current_app.queue.enqueue(send_user_registration_email, user.email, user.username)
+
         except IntegrityError as e:
             abort(500, message=str(e))
 
@@ -60,7 +74,7 @@ class UserLogout(MethodView):
         jti = get_jwt()["jti"]
         BLOCKLIST.add(jti)
         return {"message": "Successfully logged out"}, 200
-    
+
 
 @user_blueprint.route("/refresh")
 class TokenRefresh(MethodView):

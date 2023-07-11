@@ -7,6 +7,8 @@
 - flask-sqlalchemy  
 - flask-jwt-extended  
 - passlib
+- RQ (instead Celery)
+- Jinja2 (already in flask)
 
 ## Todo
 - [ ] Blocklist tokens with redis  
